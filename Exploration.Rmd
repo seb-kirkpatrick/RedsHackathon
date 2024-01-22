@@ -10,6 +10,70 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
+library("tidyverse")
+library("ggplot2")
+```
 
+```{r}
+szn <- read_csv("fangraphs_season_level.csv")
+
+pitches <- read_csv("savant_pitch_level.csv")
+```
+
+```{r}
+head(pitches)
+head(szn)
+```
+
+```{r}
+pitches |>
+  filter(player_name == "Burnes, Corbin" & game_year == 2021) |>
+  filter(pitch_type == "FC") |>
+  ggplot(
+    aes(x=pitch_number_appearance, y=release_spin_rate)
+  ) + geom_line(aes(group=game_date)) + geom_smooth(method = "loess", se = FALSE)
+```
+
+```{r}
+pitches |>
+  filter(player_name == "Ray, Robbie" & game_year == 2021) |>
+  filter(pitch_type == "FF") |>
+  ggplot(
+    aes(x=pitch_number_appearance, y=release_spin_rate)
+  ) + geom_line(aes(group=game_date)) + geom_smooth(method = "loess", se = FALSE)
+```
+
+```{r}
+pitches |>
+  filter(player_name == "Hader, Josh" & game_year == 2021) |>
+  filter(pitch_type == "SI") |>
+  ggplot(
+    aes(x=pitch_number_appearance, y=release_spin_rate)
+  ) + geom_line(aes(group=game_date)) + geom_smooth(method = "loess", se = FALSE)
+```
+
+```{r}
+pitches |>
+  filter(player_name == "Hendriks, Liam" & game_year == 2021) |>
+    filter(pitch_type == "FF") |>
+  ggplot(
+    aes(x=pitch_number_appearance, y=release_spin_rate)
+  ) + geom_line(aes(group=game_date)) + geom_smooth(method = "loess", se = FALSE)
+```
+
+```{r}
+#Fastball
+szn |>
+  select(c(4, 5, 6, 9, 12, 285:287)) |>
+  filter(IP > 45) |>
+  group_by(Role) |>
+  summarize(med_Stf = median(Stf_plus_FA, na.rm=TRUE), med_Loc = median(Loc_plus_FA, na.rm=TRUE), med_Pit = median(Pit_plus_FA, na.rm=TRUE))
+```
+
+```{r}
+szn |>
+  select(4,5,6,9,12,281,284,287,290,293,296,299,302) |>
+  filter(IP > 45) |>
+  
 ```
 
