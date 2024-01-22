@@ -11,7 +11,6 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library("tidyverse")
-library("ggplot2")
 ```
 
 ```{r}
@@ -71,9 +70,121 @@ szn |>
 ```
 
 ```{r}
-szn |>
-  select(4,5,6,9,12,281,284,287,290,293,296,299,302) |>
-  filter(IP > 45) |>
-  
+#Pitch Percentages
+
+pp <- szn |>
+  filter(IP > 45 & xFIP_minus < 85) |>
+  select(4, 6, 9, 12, 99, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13, 
+    "Screwball" = 14
+    )
+
+```
+
+```{r}
+pp2 <- pp |>
+  replace(is.na(pp),0) |>
+  mutate("Primary" = 
+           pmax(Fastball,Cutter,Split_Finger,Sinker,Slider,Curveball,Knuckle_Curve,Changeup,Screwball)) |>
+  mutate("Secondary" = 
+           apply(
+             pp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               second <- values_sorted[2]
+               return(second)
+             }
+           )
+  ) |> 
+  mutate("Third" = 
+           apply(
+             pp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               third <- values_sorted[3]
+               return(third)
+             }
+           )
+  ) |> 
+  mutate("Fourth" = 
+           apply(
+             pp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fourth <- values_sorted[4]
+               return(fourth)
+             }
+           )
+  ) |> 
+  mutate("Fifth" = 
+           apply(
+             pp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fifth <- values_sorted[5]
+               return(fifth)
+             }
+           )
+  )
+```
+
+```{r}
+pp2 |>
+  replace(is.na(pp2),0) |>
+  group_by(Role) |>
+  summarize(median(Third))
+```
+
+```{r}
+pp3 <- pp2 |>
+  replace(is.na(pp2),0)
+```
+
+
+```{r}
+pp3 |>
+  ggplot(
+  aes(x=Third, y=-xFIP_minus, color=Role)
+) + geom_point() + geom_smooth(method="loess",se=F)
+```
+
+```{r}
+# PitchingBot Pitch Grades
+
+pg <- szn |>
+  filter(IP > 45 & xFIP_minus < 90) |>
+  select(4, 6, 9, 251, 254, 257, 260, 263, 266, 269, 272) |>
+  rename(
+    "Changeup" = 4, 
+    "Curveball" = 5, 
+    "Fastball" = 6, 
+    "Sinker" = 7, 
+    "Slider" = 8, 
+    "Knuckle_Curve" = 9, 
+    "Cutter" = 10, 
+    "Split_Finger" = 11
+    ) |>
+  pivot_longer(cols=c("Changeup", "Curveball", "Fastball", "Sinker", "Slider", "Knuckle_Curve", "Cutter", "Split_Finger"), names_to = "Pitch", values_to = "Grade") |>
+  drop_na()
+```
+
+```{r}
+pg2 <- pg |> 
+  filter(Grade > 50) |>
+  group_by(NameASCII, Role, Season) |>
+  summarize(Num50 = n())
+```
+
+```{r}
+pg2 |>
+  group_by(Role, Num50) |>
+  summarize(Count = n()) |>
+  ggplot(
+    aes(x=Num50, y=Count, fill = Role)
+  ) + geom_bar(stat = "identity")
 ```
 
