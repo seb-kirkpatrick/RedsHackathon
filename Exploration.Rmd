@@ -156,8 +156,8 @@ pp3 |>
 # PitchingBot Pitch Grades
 
 pg <- szn |>
-  filter(IP > 45 & xFIP_minus < 90) |>
-  select(4, 6, 9, 251, 254, 257, 260, 263, 266, 269, 272) |>
+  filter(ifelse(Role == "SP", G > 15, G > 30)) |>
+  select(4, 6, 9, 251, 254, 257, 260, 263, 266, 269, 272, 99) |>
   rename(
     "Changeup" = 4, 
     "Curveball" = 5, 
@@ -174,17 +174,85 @@ pg <- szn |>
 
 ```{r}
 pg2 <- pg |> 
-  filter(Grade > 50) |>
-  group_by(NameASCII, Role, Season) |>
-  summarize(Num50 = n())
+  filter(Grade > 55) |>
+  group_by(NameASCII, Role, Season, xFIP_minus) |>
+  summarize(Num50 = n()) |>
+  mutate(xFIP_dummy = xFIP_minus < 100)
 ```
 
 ```{r}
 pg2 |>
-  group_by(Role, Num50) |>
+  group_by(Role, Num50, xFIP_dummy) |>
   summarize(Count = n()) |>
   ggplot(
     aes(x=Num50, y=Count, fill = Role)
-  ) + geom_bar(stat = "identity")
+  ) + geom_bar(stat = "identity") + facet_wrap(~ xFIP_dummy)
+```
+
+```{r}
+#Clustering
+
+dist <- szn |>
+  mutate(P_per_G = Pitches/G) |>
+  select(P_per_G, G) |>
+  scale(center = FALSE, scale = TRUE) |>
+  dist()
+```
+
+```{r}
+obj <- hclust(dist)
+plot(hclust(dist))
+```
+
+```{r}
+szn |>
+  mutate(cluster = cutree(obj,k=5), P_per_G = Pitches/G) |>
+  select(cluster,P_per_G,IP) |>
+  group_by(cluster) |>
+  summarize(mean(P_per_G), mean(IP), n())
+```
+
+```{r}
+szn |>
+  mutate(cluster = cutree(obj,k=5), P_per_G = Pitches/G) |>
+  select(NameASCII, IP, P_per_G, cluster) |>
+  filter(NameASCII == "Ian Gibaut")
+```
+
+```{r}
+ss <- function(x) {
+  filtered <- szn |>
+  mutate(cluster = cutree(obj,k=x), P_per_G = Pitches/G)
+  average <- filtered |>
+    select(cluster,P_per_G,IP) |>
+    group_by(cluster) |>
+    summarize(cluster_mean = mean(P_per_G))
+  left_join(filtered, average, by = "cluster") |>
+    mutate(ss = (cluster_mean - P_per_G)^2) |>
+    select(Name, P_per_G, cluster, cluster_mean, ss) |>
+    summarize(sum(ss))
+}
+```
+
+```{r}
+k_clusters <- as.numeric(C(1:10))
+
+results <- lapply(k_clusters, ss)
+
+sss <- data.frame(k_clusters, sum_of_squares = unlist(results))
+```
+
+```{r}
+ggplot(data = sss,
+  aes(x=k_clusters, y=sum_of_squares)
+) + geom_point() + geom_line() + scale_x_continuous(breaks = (1:10)) + ylim(0,70000)
+```
+
+```{r}
+szn |>
+  filter(ifelse(Role == "SP", GS > 15, IP > 50)) |>
+  select(Role,IP) |>
+  group_by(Role) |>
+  summarize(count = n())
 ```
 
