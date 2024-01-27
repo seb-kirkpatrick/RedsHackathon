@@ -206,16 +206,21 @@ plot(hclust(dist))
 
 ```{r}
 szn |>
-  mutate(cluster = cutree(obj,k=5), P_per_G = Pitches/G) |>
-  select(cluster,P_per_G,IP) |>
+  mutate(cluster = cutree(obj,k=6), 
+         P_per_G = Pitches/G,
+         Full_IP = trunc(IP),
+         Partial_Outs = 10 * (IP - trunc(IP)),
+         Outs = 3 * Full_IP + Partial_Outs,
+         O_per_G = Outs/G) |>
+  select(cluster,P_per_G,O_per_G,G) |>
   group_by(cluster) |>
-  summarize(mean(P_per_G), mean(IP), n())
+  summarize(mean(G), mean(P_per_G), mean(O_per_G), n())
 ```
 
 ```{r}
 szn |>
   mutate(cluster = cutree(obj,k=5), P_per_G = Pitches/G) |>
-  select(NameASCII, IP, P_per_G, cluster) |>
+  select(NameASCII, IP, G, P_per_G, cluster) |>
   filter(NameASCII == "Ian Gibaut")
 ```
 
@@ -224,11 +229,11 @@ ss <- function(x) {
   filtered <- szn |>
   mutate(cluster = cutree(obj,k=x), P_per_G = Pitches/G)
   average <- filtered |>
-    select(cluster,P_per_G,IP) |>
+    select(cluster,P_per_G,G) |>
     group_by(cluster) |>
-    summarize(cluster_mean = mean(P_per_G))
+    summarize(cluster_mean = mean(P_per_G), cluster_G = mean(G))
   left_join(filtered, average, by = "cluster") |>
-    mutate(ss = (cluster_mean - P_per_G)^2) |>
+    mutate(ss = (cluster_mean - P_per_G)(cluster_G - mean(G))) |>
     select(Name, P_per_G, cluster, cluster_mean, ss) |>
     summarize(sum(ss))
 }
@@ -245,7 +250,7 @@ sss <- data.frame(k_clusters, sum_of_squares = unlist(results))
 ```{r}
 ggplot(data = sss,
   aes(x=k_clusters, y=sum_of_squares)
-) + geom_point() + geom_line() + scale_x_continuous(breaks = (1:10)) + ylim(0,70000)
+) + geom_point() + geom_line() + scale_x_continuous(breaks = (1:10))
 ```
 
 ```{r}
