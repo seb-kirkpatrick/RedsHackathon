@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r}
 library("tidyverse")
+library("viridis")
 ```
 
 ```{r}
@@ -259,5 +260,127 @@ szn |>
   select(Role,IP) |>
   group_by(Role) |>
   summarize(count = n())
+```
+
+```{r}
+dat <- szn |>
+  select_if(~!is.logical(.)) |>
+  mutate(P_per_G = Pitches/G,
+         Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G, 
+         Innings = Outs/3)
+```
+
+```{r}
+tree <- dat |>
+  select(G, P_per_G, O_per_G, Innings) |>
+  scale(center = T, scale = T) |>
+  dist(method = "euclidean") |>
+  hclust()
+```
+
+```{r}
+clust <- dat |>
+  select(G, P_per_G, O_per_G, Innings) |>
+  scale(center = F, scale = T) |>
+  data.frame() |>
+  mutate(cluster = cutree(tree,k=5))
+
+
+clust_means <- clust |>
+  group_by(cluster) |>
+  summarize(clust_G = mean(G), 
+            clust_P_per_G = mean(P_per_G), 
+            clust_O_per_G = mean(O_per_G), 
+            clust_Innings = mean(Innings))
+  
+  
+left_join(clust, clust_means, by = "cluster")|>
+  mutate(ss = (clust_G - G)^2 + (clust_P_per_G - P_per_G)^2 + (clust_O_per_G - O_per_G)^2 + (clust_Innings - Innings)^2 ) |>
+  summarize(sum(ss))
+
+sum_s(5)
+```
+
+```{r}
+sum_s <- function(x) {
+  clust <- dat |>
+    select(G, P_per_G, O_per_G, Innings) |>
+    scale(center = T, scale = T) |>
+    data.frame() |>
+    mutate(cluster = cutree(tree,k=x))
+  clust_means <- clust |>
+    group_by(cluster) |>
+    summarize(clust_G = mean(G), 
+              clust_P_per_G = mean(P_per_G), 
+              clust_O_per_G = mean(O_per_G), 
+              clust_Innings = mean(Innings))
+  left_join(clust, clust_means, by = "cluster") |>
+    mutate(ss = (clust_G - G)^2 + (clust_P_per_G - P_per_G)^2 + (clust_O_per_G - O_per_G)^2 + (clust_Innings - Innings)^2 ) |>
+    summarize(sum(ss))
+}
+```
+
+```{r}
+k_clusters <- as.numeric(C(1:10))
+
+results <- lapply(k_clusters, sum_s)
+
+sss <- data.frame(k_clusters, sum_of_squares = unlist(results))
+```
+
+```{r}
+ggplot(data=sss,
+  aes(x=k_clusters, y=sum_of_squares) 
+) + geom_point() + geom_line() + scale_x_continuous(breaks = (1:10))
+```
+
+```{r}
+dat |>
+  select(NameASCII, G, P_per_G, O_per_G, Innings) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  group_by(cluster) |>
+  summarize(mean_G = mean(G), mean_P = mean(P_per_G), mean_O = mean(O_per_G), mean_I = mean(Innings))
+```
+
+```{r}
+dat|>
+  select(NameASCII, Role, G, P_per_G, O_per_G, Innings) |>
+  mutate(cluster = cutree(tree,k=5)) |>
+  filter(cluster == 1)
+```
+
+```{r}
+plot(tree)
+
+dat_clust <- dat |>
+  mutate(cluster = cutree(tree,k=10))
+```
+
+```{r}
+starter <- dat |>
+  filter(Role == "SP", GS > 10)
+```
+
+```{r}
+ggplot(data=starter,
+  aes(x=ERA, y = WPA, color=Innings)
+) + geom_point() + scale_color_viridis_c(option = "turbo")
+```
+
+```{r}
+ggplot(data=starter,
+  aes(x=xFIP_minus, y = ERA_minus, color=Innings)
+) + geom_point() + scale_color_viridis_c(option = "turbo")
+```
+
+```{r}
+num_starter <- starter |>
+  select(is.numeric)
+
+which.max(cor(num_starter$ERA, num_starter))
+num_starter[19]
 ```
 
