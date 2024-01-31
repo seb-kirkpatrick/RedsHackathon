@@ -278,13 +278,17 @@ tree <- dat |>
   select(G, P_per_G, O_per_G, Innings) |>
   scale(center = T, scale = T) |>
   dist(method = "euclidean") |>
-  hclust()
+  hclust(method="ward.D2")
+```
+
+```{r}
+plot(tree)
 ```
 
 ```{r}
 clust <- dat |>
   select(G, P_per_G, O_per_G, Innings) |>
-  scale(center = F, scale = T) |>
+  scale(center = T, scale = T) |>
   data.frame() |>
   mutate(cluster = cutree(tree,k=5))
 
@@ -307,18 +311,17 @@ sum_s(5)
 ```{r}
 sum_s <- function(x) {
   clust <- dat |>
-    select(G, P_per_G, O_per_G, Innings) |>
+    select(P_per_G, O_per_G, Innings) |>
     scale(center = T, scale = T) |>
     data.frame() |>
     mutate(cluster = cutree(tree,k=x))
   clust_means <- clust |>
     group_by(cluster) |>
-    summarize(clust_G = mean(G), 
-              clust_P_per_G = mean(P_per_G), 
+    summarize(clust_P_per_G = mean(P_per_G), 
               clust_O_per_G = mean(O_per_G), 
               clust_Innings = mean(Innings))
   left_join(clust, clust_means, by = "cluster") |>
-    mutate(ss = (clust_G - G)^2 + (clust_P_per_G - P_per_G)^2 + (clust_O_per_G - O_per_G)^2 + (clust_Innings - Innings)^2 ) |>
+    mutate(ss = (clust_P_per_G - P_per_G)^2 + (clust_O_per_G - O_per_G)^2 + (clust_Innings - Innings)^2 ) |>
     summarize(sum(ss))
 }
 ```
@@ -340,7 +343,7 @@ ggplot(data=sss,
 ```{r}
 dat |>
   select(NameASCII, G, P_per_G, O_per_G, Innings) |>
-  mutate(cluster = cutree(tree,k=7)) |>
+  mutate(cluster = cutree(tree,k=4)) |>
   group_by(cluster) |>
   summarize(mean_G = mean(G), mean_P = mean(P_per_G), mean_O = mean(O_per_G), mean_I = mean(Innings))
 ```
@@ -348,8 +351,8 @@ dat |>
 ```{r}
 dat|>
   select(NameASCII, Role, G, P_per_G, O_per_G, Innings) |>
-  mutate(cluster = cutree(tree,k=5)) |>
-  filter(cluster == 1)
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 3)
 ```
 
 ```{r}
@@ -384,3 +387,41 @@ which.max(cor(num_starter$ERA, num_starter))
 num_starter[19]
 ```
 
+```{r}
+dat <- szn |>
+  filter(IP > 30 & G > 15) |>
+  select_if(~!is.logical(.)) |>
+  mutate(P_per_G = Pitches/G,
+         Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G, 
+         Innings = Outs/3)
+```
+
+```{r}
+tree <- dat |>
+  select(O_per_G, gmLI) |>
+  scale(center = T, scale = T) |>
+  dist(method = "euclidean") |>
+  hclust(method="complete")
+```
+
+```{r}
+plot(tree) + abline(h=2.2, col="red")
+```
+
+```{r}
+dat |>
+  select(NameASCII, G, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=5)) |>
+  group_by(cluster) |>
+  summarize(mean_G = mean(G), mean_P = mean(P_per_G), mean_O = mean(O_per_G), mean_I = mean(Innings), mean_gmLI = mean(gmLI), count = n())
+```
+
+```{r}
+dat|>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=5)) |>
+  filter(cluster == 4)
+```
