@@ -1,0 +1,717 @@
+---
+title: "Report Code"
+author: "Sebastian Kirkpatrick"
+date: "2024-02-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+library("viridis")
+```
+
+```{r}
+szn <- read_csv("fangraphs_season_level.csv")
+
+pitches <- read_csv("savant_pitch_level.csv")
+```
+
+# Role Clustering
+
+```{r}
+szn_filt <- szn |>
+  filter(IP > 25 & G > 15) |>
+  select_if(~!is.logical(.)) |>
+  mutate(P_per_G = Pitches/G,
+         Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G, 
+         Innings = Outs/3)
+```
+
+```{r}
+tree <- szn_filt |>
+  select(O_per_G, gmLI) |>
+  scale(center = T, scale = T) |>
+  dist(method = "euclidean") |>
+  hclust(method="complete")
+```
+
+```{r}
+plot(tree)
+```
+
+## Cluster Summaries
+
+```{r}
+szn_filt |>
+  select(NameASCII, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  group_by(cluster) |>
+  summarize(mean_P = mean(P_per_G), 
+            mean_O = mean(O_per_G), 
+            mean_I = mean(Innings), 
+            mean_gmLI = mean(gmLI), 
+            mean_SV = mean(SV), 
+            count = n())
+```
+
+## Full Clusters
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 1)
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 2)
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 3)
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 4)
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 5)
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 6)
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, Season, Role, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  filter(cluster == 7)
+```
+
+# Arsenal Percent & Stuff + Correlations
+
+## Starters
+
+### Pitch Percentages
+
+```{r}
+szn_pitch <- szn |>
+  replace(is.na(szn),0) |>
+  filter(Role == "SP", G > 15) |>
+  select(4, 6, 9, 12, 97, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13, 
+    "Screwball" = 14
+    )
+
+arsenal_p <- szn_pitch |>
+  mutate("Primary" = 
+           pmax(Fastball,Cutter,Split_Finger,Sinker,Slider,Curveball,Knuckle_Curve,Changeup,Screwball)) |>
+  mutate("Secondary" = 
+           apply(
+             szn_pitch[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               second <- values_sorted[2]
+               return(second)
+             }
+           )
+  ) |> 
+  mutate("Third" = 
+           apply(
+             szn_pitch[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               third <- values_sorted[3]
+               return(third)
+             }
+           )
+  ) |> 
+  mutate("Fourth" = 
+           apply(
+             szn_pitch[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fourth <- values_sorted[4]
+               return(fourth)
+             }
+           )
+  ) |> 
+  mutate("Fifth" = 
+           apply(
+             szn_pitch[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fifth <- values_sorted[5]
+               return(fifth)
+             }
+           )
+  )
+```
+  
+```{r}
+cor(arsenal_p$ERA_minus, arsenal_p[15:17])
+```
+
+### Pitch Grades
+
+```{r}
+szn_arsenal <- szn |>
+  replace(is.na(szn),0) |>
+  filter(Role == "SP", G > 15) |>
+  select(4, 6, 9, 12, 97, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13,
+    "Screwball" = 14
+    )
+
+sa1 <- szn_arsenal |>
+  mutate("Primary" = apply(szn_arsenal[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[1]])) |>
+  mutate("Secondary" = apply(szn_arsenal[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[2]])) |>
+  mutate("Third" = apply(szn_arsenal[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[3]])) |>
+  mutate("Fourth" = apply(szn_arsenal[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[4]])) |>
+  mutate("Fifth" = apply(szn_arsenal[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[5]])) |>
+  select(1,2,3,5,15:19) |>
+  pivot_longer(cols=c(5:9), names_to = "Arsenal", values_to = "Pitch")
+```
+
+```{r}
+sa2 <- szn |>
+  replace(is.na(szn),0) |>
+  filter(Role == "SP", G > 15) |>
+  select(4, 6, 9, 12, 97, 279, 282, 285, 288, 291, 294, 297, 300, 304) |>
+  rename(
+    "Changeup" = 6, 
+    "Curveball" = 7, 
+    "Fastball" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Knuckle_Curve" = 11, 
+    "Cutter" = 12, 
+    "Split_Finger" = 13, 
+    "Forkball" = 14
+    ) |> 
+  select(1,2,3,5:14) |>
+  pivot_longer(cols = c(5:13), names_to = "Pitch", values_to = "Stuff_plus")
+```
+
+```{r}
+arsenal_grades <- left_join(sa1, sa2, by = c("NameASCII", "Season", "Role", "ERA_minus", "Pitch")) |>
+  select(!6) |>
+  pivot_wider(names_from = "Arsenal", values_from = "Stuff_plus") |>
+  mutate(across(everything(), ~replace(., . == 0, NA)))
+```
+
+```{r}
+cor(arsenal_grades$ERA_minus, arsenal_grades[5:7], use = "complete.obs")
+```
+
+## Single-Innings Relievers
+
+### Pitch Percentages
+
+```{r}
+szn_pitch_rp <- szn |>
+  replace(is.na(szn),0) |>
+  mutate(Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G) |>
+  filter(Role == "RP", G > 15, O_per_G < 4) |>
+  select(4, 6, 9, 12, 97, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13, 
+    "Screwball" = 14
+    )
+
+arsenal_p_rp <- szn_pitch_rp |>
+  mutate("Primary" = 
+           pmax(Fastball,Cutter,Split_Finger,Sinker,Slider,Curveball,Knuckle_Curve,Changeup,Screwball)) |>
+  mutate("Secondary" = 
+           apply(
+             szn_pitch_rp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               second <- values_sorted[2]
+               return(second)
+             }
+           )
+  ) |> 
+  mutate("Third" = 
+           apply(
+             szn_pitch_rp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               third <- values_sorted[3]
+               return(third)
+             }
+           )
+  ) |> 
+  mutate("Fourth" = 
+           apply(
+             szn_pitch_rp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fourth <- values_sorted[4]
+               return(fourth)
+             }
+           )
+  ) |> 
+  mutate("Fifth" = 
+           apply(
+             szn_pitch_rp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fifth <- values_sorted[5]
+               return(fifth)
+             }
+           )
+  )
+```
+  
+```{r}
+cor(arsenal_p_rp$ERA_minus, arsenal_p_rp[15:17])
+```
+
+### Pitch Grades
+
+```{r}
+szn_arsenalr <- szn |>
+  replace(is.na(szn),0) |>
+  mutate(Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G) |>
+  filter(Role == "RP", G > 15, O_per_G < 4) |>
+  select(4, 6, 9, 12, 97, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13,
+    "Screwball" = 14
+    )
+
+ra1 <- szn_arsenalr |>
+  mutate("Primary" = apply(szn_arsenalr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[1]])) |>
+  mutate("Secondary" = apply(szn_arsenalr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[2]])) |>
+  mutate("Third" = apply(szn_arsenalr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[3]])) |>
+  mutate("Fourth" = apply(szn_arsenalr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[4]])) |>
+  mutate("Fifth" = apply(szn_arsenalr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[5]])) |>
+  select(1,2,3,5,15:19) |>
+  pivot_longer(cols=c(5:9), names_to = "Arsenal", values_to = "Pitch")
+```
+
+```{r}
+ra2 <- szn |>
+  replace(is.na(szn),0) |>
+  mutate(Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G) |>
+  filter(Role == "RP", G > 15, O_per_G < 4) |>
+  select(4, 6, 9, 12, 97, 279, 282, 285, 288, 291, 294, 297, 300, 304) |>
+  rename(
+    "Changeup" = 6, 
+    "Curveball" = 7, 
+    "Fastball" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Knuckle_Curve" = 11, 
+    "Cutter" = 12, 
+    "Split_Finger" = 13, 
+    "Forkball" = 14
+    ) |> 
+  select(1,2,3,5:14) |>
+  pivot_longer(cols = c(5:13), names_to = "Pitch", values_to = "Stuff_plus")
+```
+
+```{r}
+arsenal_gradesr <- left_join(ra1, ra2, by = c("NameASCII", "Season", "Role", "ERA_minus", "Pitch")) |>
+  select(!6) |>
+  pivot_wider(names_from = "Arsenal", values_from = "Stuff_plus") |>
+  mutate(across(everything(), ~replace(., . == 0, NA)))
+```
+
+```{r}
+cor(arsenal_gradesr$ERA_minus, arsenal_gradesr[5:7], use = "complete.obs")
+```
+
+## Multi-Innings Relievers
+
+### Pitch Percentages
+
+```{r}
+szn_pitch_lrp <- szn |>
+  replace(is.na(szn),0) |>
+  mutate(Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G) |>
+  filter(Role == "RP", G > 15, O_per_G > 4) |>
+  select(4, 6, 9, 12, 97, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13, 
+    "Screwball" = 14
+    )
+
+arsenal_p_lrp <- szn_pitch_lrp |>
+  mutate("Primary" = 
+           pmax(Fastball,Cutter,Split_Finger,Sinker,Slider,Curveball,Knuckle_Curve,Changeup,Screwball)) |>
+  mutate("Secondary" = 
+           apply(
+             szn_pitch_lrp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               second <- values_sorted[2]
+               return(second)
+             }
+           )
+  ) |> 
+  mutate("Third" = 
+           apply(
+             szn_pitch_lrp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               third <- values_sorted[3]
+               return(third)
+             }
+           )
+  ) |> 
+  mutate("Fourth" = 
+           apply(
+             szn_pitch_lrp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fourth <- values_sorted[4]
+               return(fourth)
+             }
+           )
+  ) |> 
+  mutate("Fifth" = 
+           apply(
+             szn_pitch_lrp[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) {
+               values_sorted <- sort(x, decreasing=T)
+               fifth <- values_sorted[5]
+               return(fifth)
+             }
+           )
+  )
+```
+  
+```{r}
+cor(arsenal_p_lrp$ERA_minus, arsenal_p_lrp[15:17])
+```
+
+### Pitch Grades
+
+```{r}
+szn_arsenallr <- szn |>
+  replace(is.na(szn),0) |>
+  mutate(Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G) |>
+  filter(Role == "RP", G > 15, O_per_G > 4) |>
+  select(4, 6, 9, 12, 97, 170:172, 174:177, 179, 180) |>
+  rename(
+    "Fastball" = 6, 
+    "Cutter" = 7, 
+    "Split_Finger" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Curveball" = 11, 
+    "Knuckle_Curve" = 12, 
+    "Changeup" = 13,
+    "Screwball" = 14
+    )
+
+lra1 <- szn_arsenallr |>
+  mutate("Primary" = apply(szn_arsenallr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[1]])) |>
+  mutate("Secondary" = apply(szn_arsenallr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[2]])) |>
+  mutate("Third" = apply(szn_arsenallr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[3]])) |>
+  mutate("Fourth" = apply(szn_arsenallr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[4]])) |>
+  mutate("Fifth" = apply(szn_arsenallr[,c("Fastball","Cutter","Split_Finger","Sinker","Slider","Curveball","Knuckle_Curve","Changeup","Screwball")], 1, function(x) names(x)[order(x, decreasing = T)[5]])) |>
+  select(1,2,3,5,15:19) |>
+  pivot_longer(cols=c(5:9), names_to = "Arsenal", values_to = "Pitch")
+```
+
+```{r}
+lra2 <- szn |>
+  replace(is.na(szn),0) |>
+  mutate(Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G) |>
+  filter(Role == "RP", G > 15, O_per_G > 4) |>
+  select(4, 6, 9, 12, 97, 279, 282, 285, 288, 291, 294, 297, 300, 304) |>
+  rename(
+    "Changeup" = 6, 
+    "Curveball" = 7, 
+    "Fastball" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Knuckle_Curve" = 11, 
+    "Cutter" = 12, 
+    "Split_Finger" = 13, 
+    "Forkball" = 14
+    ) |> 
+  select(1,2,3,5:14) |>
+  pivot_longer(cols = c(5:13), names_to = "Pitch", values_to = "Stuff_plus")
+```
+
+```{r}
+arsenal_gradeslr <- left_join(lra1, lra2, by = c("NameASCII", "Season", "Role", "ERA_minus", "Pitch")) |>
+  select(!6) |>
+  pivot_wider(names_from = "Arsenal", values_from = "Stuff_plus") |>
+  mutate(across(everything(), ~replace(., . == 0, NA)))
+```
+
+```{r}
+cor(arsenal_gradeslr$ERA_minus, arsenal_gradeslr[5:7], use = "complete.obs")
+```
+
+# Pitch Arsenal Linear Regression
+
+## Starter
+
+```{r}
+sp_mod2 <- lm(ERA_minus ~ Primary + Secondary + Third, data=arsenal_grades)
+summary(sp_mod2)
+```
+
+## SI Reliever
+
+```{r}
+rp_mod1 <- lm(ERA_minus ~ Primary + Secondary + Third, data=arsenal_gradesr)
+summary(rp_mod1)
+
+rp_mod2 <- lm(ERA_minus ~ Primary + Secondary, data=arsenal_gradesr)
+summary(rp_mod2)
+```
+
+## L Reliever
+
+```{r}
+lrp_mod1 <- lm(ERA_minus ~ Primary + Secondary + Third, data=arsenal_gradeslr)
+summary(lrp_mod1)
+
+lrp_mod2 <- lm(ERA_minus ~ Primary + Secondary, data=arsenal_gradeslr)
+summary(lrp_mod2)
+
+lrp_mod3 <- lm(ERA_minus ~ Primary, data=arsenal_gradeslr)
+summary(lrp_mod3)
+```
+
+# Plus Pitches
+
+```{r}
+plus_pitches <- szn |>
+  replace(is.na(szn),0) |>
+  filter(G > 15) |>
+  select(4, 6, 9, 12, 97, 279, 282, 285, 288, 291, 294, 297, 300, 304) |>
+  rename(
+    "Changeup" = 6, 
+    "Curveball" = 7, 
+    "Fastball" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Knuckle_Curve" = 11, 
+    "Cutter" = 12, 
+    "Split_Finger" = 13, 
+    "Forkball" = 14
+    ) |>
+  mutate(
+    plus_pitches = rowSums(across(6:14, ~ . > 110, .names = "V{.col}")),
+    ERA_dummy = ERA_minus < 100
+    )
+
+ggplot(data=plus_pitches,
+    aes(x=plus_pitches, y=ERA_minus)
+  ) + geom_smooth(method="lm") + facet_wrap(~Role) +
+  labs(title = "ERA-minus vs Number of +Pitches",
+       x="Number of Plus Pitches",
+       y="ERA_minus")
+```
+
+```{r}
+plus_pitches |>
+  group_by(plus_pitches, Role, ERA_dummy) |>
+  summarize(count = n()) |>
+  ggplot(
+       aes(x=plus_pitches, y=count, fill=ERA_dummy)) +
+    geom_bar(stat="identity") + facet_wrap(~Role) +
+  labs(title = "Pitchers with Above-Average ERA-minus",
+       x= "Number of Plus Pitches",
+       y= "Number of Pitchers",
+       fill="ERA- < 100")
+```
+
+# wOBA Across an Outing
+
+```{r}
+duration <- pitches |>
+  select(player_name, woba_value, role_key, pitch_number_appearance, pitcher_at_bat_number, times_faced) |>
+  filter(!is.na(woba_value)) |>
+  group_by(role_key, pitch_number_appearance) |>
+  summarize(mean_woba = mean(woba_value), count = n())
+```
+
+```{r}
+duration |>
+  ggplot(
+    aes(x=pitch_number_appearance, y=mean_woba, color=role_key)
+  ) + geom_smooth(method = "loess", se=F) +
+  labs(tite = "Mean wOBA vs Number of Pitches",
+       x="Pitch Count",
+       y="mean wOBA",
+       color="Role")
+```
+
+# Maintaining Velocity
+
+```{r}
+results <- pitches |>
+  filter(pitch_type == "FF") |>
+  group_by(pitch_type, game_date, player_name, role_key, pitcher_at_bat_number) |>
+  summarize(mean_velo = mean(release_speed)) |>
+  pivot_wider(names_from = pitcher_at_bat_number, names_sort = T, values_from = mean_velo) |>
+  mutate(across(starts_with("2") : ends_with("35"), ~ . - `1`, .names = "{.col}")) |>
+  group_by(player_name, role_key) |>
+  summarize(across(c(4:37), mean, na.rm = TRUE)) |>
+  pivot_longer(cols = c(3:36), names_to = "Pitch", values_to = "Difference") |>
+  mutate(Pitch = as.numeric(Pitch)) |> 
+  na.omit()
+```
+
+```{r}
+ggplot(data=results,
+       aes(x=Pitch, y=Difference)
+  ) + geom_point() + geom_smooth(method = "lm", se=F) + facet_wrap(~role_key) +
+  labs(title = "Four-Seam Fastball Velocity Average Difference", x="At-Bat", y="Difference in Velo from First Pitch")
+```
+
+```{r}
+results_cu <- pitches |>
+  filter(pitch_type == "FC") |>
+  group_by(pitch_type, game_date, player_name, role_key, pitcher_at_bat_number) |>
+  summarize(mean_velo = mean(release_speed)) |>
+  pivot_wider(names_from = pitcher_at_bat_number, names_sort = T, values_from = mean_velo) |>
+  mutate(across(starts_with("2") : ends_with("35"), ~ . - `1`, .names = "{.col}")) |>
+  group_by(player_name, role_key) |>
+  summarize(across(c(4:37), mean, na.rm = TRUE)) |>
+  pivot_longer(cols = c(3:36), names_to = "Pitch", values_to = "Difference") |>
+  mutate(Pitch = as.numeric(Pitch)) |> 
+  na.omit()
+```
+
+```{r}
+ggplot(data=results_cu,
+       aes(x=Pitch, y=Difference)
+  ) + geom_point() + geom_smooth(method = "lm", se=F) + facet_wrap(~role_key) +
+  labs(title = "Cutter Velocity Average Difference", x="At-Bat", y="Difference in Velo from First Pitch")
+```
+
+```{r}
+results_si <- pitches |>
+  filter(pitch_type == "SI") |>
+  group_by(pitch_type, game_date, player_name, role_key, pitcher_at_bat_number) |>
+  summarize(mean_velo = mean(release_speed)) |>
+  pivot_wider(names_from = pitcher_at_bat_number, names_sort = T, values_from = mean_velo) |>
+  mutate(across(starts_with("2") : ends_with("35"), ~ . - `1`, .names = "{.col}")) |>
+  group_by(player_name, role_key) |>
+  summarize(across(c(4:37), mean, na.rm = TRUE)) |>
+  pivot_longer(cols = c(3:36), names_to = "Pitch", values_to = "Difference") |>
+  mutate(Pitch = as.numeric(Pitch)) |> 
+  na.omit()
+```
+
+```{r}
+ggplot(data=results_si,
+       aes(x=Pitch, y=Difference)
+  ) + geom_point() + geom_smooth(method = "lm", se=F) + facet_wrap(~role_key) +
+  labs(title = "Sinker Velocity Average Difference", x="At-Bat", y="Difference in Velo from First Pitch")
+```
+
+# Candidates for New Roles
+
+## Rafael Montero 
+
+```{r}
+szn |>
+  replace(is.na(szn),0) |>
+  filter(NameASCII == "Rafael Montero") |>
+  select(4, 6, 9, 12, 97, 170, 174, 175, 179, 279, 285, 288, 291)
+```
+
+```{r}
+results |>
+  filter(player_name == "Montero, Rafael") |>
+  arrange(-Pitch)
+```
+
+## Stephen Strasburg
+
+```{r}
+szn |>
+  replace(is.na(szn),0) |>
+  filter(NameASCII == "Stephen Strasburg") |>
+  select(4, 6, 9, 12, 97, 170, 174, 176, 179, 279, 282, 285, 288)
+```
+
+```{r}
+results |>
+  filter(player_name == "Strasburg, Stephen") |>
+  arrange(-Pitch)
+```
+
+```{r}
+results_si |>
+  filter(player_name == "Strasburg, Stephen") |>
+  arrange(-Pitch)
+```
