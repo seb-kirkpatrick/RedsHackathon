@@ -6,12 +6,51 @@ output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = F)
+knitr::opts_chunk$set(echo = F,warning = F, message = F)
+library("tidyverse")
+library("readr")
+```
+
+```{r}
+szn <- read_csv("fangraphs_season_level.csv")
+
+pitches <- read_csv("savant_pitch_level.csv")
 ```
 
 # Roles
 
-For this exercise, I started with clustering to see what kind of role shows themselves in the data. When it comes to role, there are two core things that I want to look at. The leverage of the game situation a pitcher is put in, and the number of out that pitcher gets. For this, I created a new variable, outs per appearance, and used it in tandem with average game leverage index for my clustering. I expanded my number of clusters until two clusters were formed out of starters, then did one less. The resulting 7 clusters did not represent 7 different roles, but the clusters with a little bit of contrast helped cleared this up.
+For this exercise, I started with clustering to see what kind of role shows themselves in the data. When it comes to roles, I looked at two core metrics: the leverage of the game a pitcher is put in, and the number of outs that pitcher gets. I created a new variable, outs per appearance, and used it in tandem with the average game leverage index for my clustering. I expanded my number of clusters until two clusters were formed out of starters, then did one less. The resulting 7 clusters did not represent 7 different roles, but the clusters with a little bit of contrast helped clear this up.
+
+```{r}
+szn_filt <- szn |>
+  filter(IP > 25 & G > 15) |>
+  select_if(~!is.logical(.)) |>
+  mutate(P_per_G = Pitches/G,
+         Full_IP = trunc(IP),
+         Partial_Outs = IP - trunc(IP),
+         Outs = 3 * Full_IP + 10 * Partial_Outs,
+         O_per_G = Outs/G, 
+         Innings = Outs/3)
+
+tree <- szn_filt |>
+  select(O_per_G, gmLI) |>
+  scale(center = T, scale = T) |>
+  dist(method = "euclidean") |>
+  hclust(method="complete")
+```
+
+```{r}
+szn_filt |>
+  select(NameASCII, SV, P_per_G, O_per_G, Innings, gmLI) |>
+  mutate(cluster = cutree(tree,k=7)) |>
+  group_by(cluster) |>
+  summarize(mean_P = mean(P_per_G), 
+            mean_O = mean(O_per_G), 
+            mean_I = mean(Innings), 
+            mean_gmLI = mean(gmLI), 
+            mean_SV = mean(SV), 
+            count = n())
+```
 
 ## Starters
 
@@ -23,53 +62,169 @@ This is where we get some variation. The 6 non-cluster groups had all different 
 
 ### High Leverage, Single-Inning (SI) Relievers
 
-These are the guys who pitch the late innings of the games. Mainly closers and setup men, this role comprised as few clusters. Almost every pitcher in this role average 3 out per innings. Their objective is to pitch a scoreless inning. 
+These are the guys who pitch the late innings of the games. Mainly closers and setup men, this role comprised a few clusters. Almost every pitcher in this role averaged 3 outs per innings. Their objective is to pitch a scoreless inning. 
 
 ### Long-Relievers
 
-This group is more established based on their outs because they can come in at any times. In fact, most pitchers in this role did not come into games with high leverage. If you think about a long-reliever, that makes sense. They come in when the starter did not make it long enough to give the ball to the single-inning guys. This can be due to injury, or a blow-up start, which, either way, will often not result in a high leverage situation. There were some guys who pitch multiple, high-leverage innings, but they were more of an exception that the standard. The issue with perfectly separating these guys is that there are not very many, and, in the end, have the same general goal as starters: pitch as long as possible without giving up runs. Yes, their outs per game is normally between a single-inning workload and a starter, that is not always the case.
+This group is more established based on their outs because they can come in at any time. Pitchers in this role often didn’t come into games with high leverage. For instance, they came in when the starter did not make it long enough to give the ball to the single-inning guys. Some guys pitched multiple, high-leverage innings, but they were more of an exception than the standard. They share the same general goal as starters: pitch as long as possible without giving up runs.
 
-### The Rest of the Releivers
+### The Rest of the Relievers
 
-The final group is another group of single-inning guys, but with much less average leverage. These are the guys in the back of the bullpen who pitch when the games are not competitive. Some 6th-innings guys were placed here. While there was a clear difference in clusters between this group and the high-leverage arms, their outs per game were also around 3. Once again, this role is more explain by a the rest of a team's bullpen, so I will not really consider this group for the exercise of defining success. Success is exactly the same as high-leverage guys, just when the games don;t really matter.
+The final group is a group of single-inning guys, but with less average leverage. These are the guys in the back of the bullpen who pitch when the games are not competitive. Yet, their outs per game were also around 3. This role is more explained by the rest of a team's bullpen, so I will not really consider this group for the exercise of defining success.
 
 # Characteristics of Success
 
-While there are plenty of great estimators to use for future success, I will be using ERA for this exercise to describe success. At the end of the day, winning is about scoring more runs than the opponent and a successful pitcher does not give up runs. For the sake of adjusting for different ballparks and to be more clear in terms of the league average, I will look at a pitcher's ERA minus and see what other variables help (or do not help) explain why they kept runs off the board, or failed to do so.
+While there are plenty of estimators to use for future success, I will be using ERA for this exercise to describe success. Winning is about scoring more runs than the opponent. For the sake of adjusting for different ballparks and to be more clear in terms of the league average, I will look at a pitcher's ERA minus for a measure of success.
 
 ## Pitch Arsenal
 
-To start off, I looked at the percentage of the top 3 pitches for each pitcher and ran their correlation to ERA minus. For starters, both primary % and secondary % have negative correlations, though for Primary, it is near zero. The correlation is positive for the third pitch. This makes sense as the more a starter throws their third pitch should help them out. For single-inning arms, only the correlation with Primary was negative. This follows along with the trend that two-pitch pitchers can be more successful as relievers. Plus, guys who only rely on one pitch are not normally as successful. Finally, the correlations for multi-inning arms were all positive, except for correlation with the third pitch. This is does not exactly conform with the role, but may be due to the small number of guys who average more than 4 outs per inning.
+First, I looked at the percentage of the top 3 pitches and ran their correlation to ERA minus. For starters, both primary and secondary have negative correlations, though for primary, it is near zero. The correlation is positive for the third pitch. This makes sense as the more a starter throws their third pitch should help them out. For single-inning arms, only the correlation with primary was negative. This follows along with the trend that two-pitch pitchers can be more successful as relievers. Finally, the correlations for multi-inning arms were all positive, except for correlation with the third pitch. This does not exactly conform with the role, but may be due to the small number of guys who average more than 4 outs per inning.
 
 ## Pitch Stuff+ Grades
 
-The next step was to do the same correlations, but instead of using the percent of the pitches, using the grades of stuff+ for those pitches. Unsurprisingly, the correlations with ERA minus were all negative and were strongest for Primary, then secondary, and finally the third offering for starters. Thus, the starters with the most success have highly graded pitches for their top three offerings. Also, a strong primary pitch is crucial for a starter. For single-inning relievers, there are all negative, but have much less correlation than starters. The correlation between the primary for SI arms is about the same as the correlation for the secondary of starters. The stuff+ is less correlated across the board for relievers, but it is clear that primary and secondary are much more correlated to ERA minus than the third offering. Finally, for long relievers, they are all negative, but all very close to each other. They are the least correlated for primary and secondary, but have a third pitch more correlated than SI arms. AT least in terms of correlations, it seems the more a pitcher has to pitch, the more correlated a third offering becomes with ERA minus. 
+The next step was viewing the correlations of ERA minus to the stuff+ grades for those pitches. Unsurprisingly, the correlations with ERA minus were all negative and strongest for primary, then secondary, and finally the third offering for starters. The correlation between the primary for SI arms is about the same as the correlation for the secondary of starters. The stuff+ is less correlated across the board for relievers, but it is clear that primary and secondary are more correlated to ERA minus than the third offering. Finally, for long relievers, they are all negative, but all very close to each other. They are the least correlated for primary and secondary, but have a third pitch more correlated than SI arms. In terms of correlations, it seems the more a pitcher has to pitch, the more correlated a third offering becomes with ERA minus. 
 
 ## Regression Analysis
 
-The next step I took was performing linear regression with ERA minus as the response and the grade of the top 3 used pitches as the inputs. For each role, I found which variables were, and more importantly, were not, significant in creating a model to predict ERA minus. For starters, all three grades were statistically significant and all three had negative coefficients with primary the most negative, then secondary, and finally the third pitch. The model SI Relievers held the Stuff+ of the third pitch not significant. The coefficient were still both negative and primary was more negative than secondary. Finally, long relievers only had primary as the only significant predictor. 
+Since Stuff+ grades were more correlated than percentages, I performed linear regression with ERA minus as the response and the grades of the pitches as the inputs. I found which pitches were, and more importantly, were not, significant in creating a model to predict ERA minus. For starters, all three grades were statistically significant and all three had negative coefficients with primary the most negative, then secondary, and finally the third pitch. The model SI relievers found the Stuff+ of the third pitch not significant. The coefficients were still both negative and primary was more negative than secondary. Finally, long relievers only had primary as the only significant predictor.
 
 ## Evaluation of Plus-Pitches
 
 Before getting to the analysis of plus pitches, it is important to note that I have decided the role of long reliever is not going to be considered here. The linear model was almost not significant at all, so I kept those players in the analysis, but focused on their role of whether or not they started a game for this section. 
 
-With that being said, I found the trend line of plus pitches (pitches with stuff plus greater than one standard deviation of the mean) vs ERA minus. The difference is that the slops i much steeper for starters, which explains why a third pitch is more important for starters than relievers. However, the general shape of the lines are similar, which is important. Having multiple plus pitches sets a pitcher up for success regardless of role. Looking at the count of above average pitchers, the proportion of above average pitchers at each level of plus pitches is about the same for starter and relievers, confirming this idea. So, there needs to be something else, not just plus pitches that can set a starter apart.
+With that being said, I found the trend line of plus pitches (pitches with stuff plus greater than one standard deviation of the mean) vs ERA minus. The difference is that the slope is steeper for starters, which explains why a third pitch is more important for starters than relievers. However, the general shape of the lines are similar. Having multiple plus pitches sets a pitcher up for success regardless of role. Looking at the count of above average pitchers, the proportion of above average pitchers at each level of plus pitches is about the same for starters and relievers, confirming this idea. So, there needs to be something else, not just plus pitches that can set a starter apart.
+
+```{r}
+plus_pitches <- szn |>
+  replace(is.na(szn),0) |>
+  filter(G > 15) |>
+  select(4, 6, 9, 12, 97, 279, 282, 285, 288, 291, 294, 297, 300, 304) |>
+  rename(
+    "Changeup" = 6, 
+    "Curveball" = 7, 
+    "Fastball" = 8, 
+    "Sinker" = 9, 
+    "Slider" = 10, 
+    "Knuckle_Curve" = 11, 
+    "Cutter" = 12, 
+    "Split_Finger" = 13, 
+    "Forkball" = 14
+    ) |>
+  mutate(
+    plus_pitches = rowSums(across(6:14, ~ . > 110, .names = "V{.col}")),
+    ERA_dummy = ERA_minus < 100
+    )
+
+ggplot(data=plus_pitches,
+    aes(x=plus_pitches, y=ERA_minus)
+  ) + geom_smooth(method="lm") + facet_wrap(~Role) +
+  labs(title = "ERA-minus vs Number of +Pitches",
+       x="Number of Plus Pitches",
+       y="ERA_minus")
+```
+
+
+```{r}
+plus_pitches |>
+  group_by(plus_pitches, Role, ERA_dummy) |>
+  summarize(count = n()) |>
+  ggplot(
+       aes(x=plus_pitches, y=count, fill=ERA_dummy)) +
+    geom_bar(stat="identity") + facet_wrap(~Role) +
+  labs(title = "Pitchers with Above-Average ERA-minus",
+       x= "Number of Plus Pitches",
+       y= "Number of Pitchers",
+       fill="ERA- < 100")
+```
 
 ## wOBA Across an Outing
 
-This is where I start to define characteristics for someone potentially changing roles. Yes, these are also characteristics of success, but will also aid in finding who could change roles. For a starter, or a long reliever, it is clear that they need to pitch more. Outside of arm durability, they also need to still be successful for more pitches. Just between Sp and RP, I found the mean wOBA of each pitch for every pitch thrown. The graph shows a clear trend: reliever are better at minimizing wOBA until about pitch 25. Then, their mean wOBA skyrockets. Starters, while starting higher than relievers, stay pretty stable up to 100 pitches. 
+For a starter, or a long reliever, it is clear that they need to pitch more. Outside of arm durability, they also need to still be successful for more pitches. Between SP and RP, the graph shows the mean wOBA of each pitch for every pitch thrown. Relievers are better at minimizing wOBA until about pitch 25, where their mean wOBA skyrockets. Starters stay pretty stable up to 100 pitches. 
+
+```{r}
+duration <- pitches |>
+  select(player_name, woba_value, role_key, pitch_number_appearance, pitcher_at_bat_number, times_faced) |>
+  filter(!is.na(woba_value)) |>
+  group_by(role_key, pitch_number_appearance) |>
+  summarize(mean_woba = mean(woba_value), count = n())
+
+duration |>
+  ggplot(
+    aes(x=pitch_number_appearance, y=mean_woba, color=role_key)
+  ) + geom_smooth(method = "loess", se=F) +
+  labs(tite = "Mean wOBA vs Number of Pitches",
+       x="Pitch Count",
+       y="mean wOBA",
+       color="Role")
+```
 
 ## Average Velocity Drop
 
-We need our starters to be consistent for much longer periods of time, and the place I looked was fastball velocity. I took the pitch data for four-seams, cutters, and sinkers and graphed the average dip from the first at-bat for each pitcher. Then, by separating SP and RP, a clear drop happens. Velocity for all of thew pitches decrease much sharper for relievers compared to starters. For a successful starter, we need their fastball, or whatever primary speed pitch they use, to be consistent.
+Starters need to be consistent for longer periods of time, so the next place I looked was fastball velocity. I took the pitch data for four-seams, cutters, and sinkers and graphed the average dip from the first at-bat for each pitcher. Separating SP and RP, there is a clear difference. Velocity for all of the pitches decreases at a sharper rate for relievers compared to starters.
+
+```{r}
+results <- pitches |>
+  filter(pitch_type == "FF") |>
+  group_by(pitch_type, game_date, player_name, role_key, pitcher_at_bat_number) |>
+  summarize(mean_velo = mean(release_speed)) |>
+  pivot_wider(names_from = pitcher_at_bat_number, names_sort = T, values_from = mean_velo) |>
+  mutate(across(starts_with("2") : ends_with("35"), ~ . - `1`, .names = "{.col}")) |>
+  group_by(player_name, role_key) |>
+  summarize(across(c(4:37), mean, na.rm = TRUE)) |>
+  pivot_longer(cols = c(3:36), names_to = "Pitch", values_to = "Difference") |>
+  mutate(Pitch = as.numeric(Pitch)) |> 
+  na.omit()
+
+ggplot(data=results,
+       aes(x=Pitch, y=Difference)
+  ) + geom_point() + geom_smooth(method = "lm", se=F) + facet_wrap(~role_key) +
+  labs(title = "Four-Seam Fastball Velocity Average Difference", x="At-Bat", y="Difference in Velo from First Pitch")
+```
+
+```{r}
+results_cu <- pitches |>
+  filter(pitch_type == "FC") |>
+  group_by(pitch_type, game_date, player_name, role_key, pitcher_at_bat_number) |>
+  summarize(mean_velo = mean(release_speed)) |>
+  pivot_wider(names_from = pitcher_at_bat_number, names_sort = T, values_from = mean_velo) |>
+  mutate(across(starts_with("2") : ends_with("35"), ~ . - `1`, .names = "{.col}")) |>
+  group_by(player_name, role_key) |>
+  summarize(across(c(4:37), mean, na.rm = TRUE)) |>
+  pivot_longer(cols = c(3:36), names_to = "Pitch", values_to = "Difference") |>
+  mutate(Pitch = as.numeric(Pitch)) |> 
+  na.omit()
+
+ggplot(data=results_cu,
+       aes(x=Pitch, y=Difference)
+  ) + geom_point() + geom_smooth(method = "lm", se=F) + facet_wrap(~role_key) +
+  labs(title = "Cutter Velocity Average Difference", x="At-Bat", y="Difference in Velo from First Pitch")
+```
+
+```{r}
+results_si <- pitches |>
+  filter(pitch_type == "SI") |>
+  group_by(pitch_type, game_date, player_name, role_key, pitcher_at_bat_number) |>
+  summarize(mean_velo = mean(release_speed)) |>
+  pivot_wider(names_from = pitcher_at_bat_number, names_sort = T, values_from = mean_velo) |>
+  mutate(across(starts_with("2") : ends_with("35"), ~ . - `1`, .names = "{.col}")) |>
+  group_by(player_name, role_key) |>
+  summarize(across(c(4:37), mean, na.rm = TRUE)) |>
+  pivot_longer(cols = c(3:36), names_to = "Pitch", values_to = "Difference") |>
+  mutate(Pitch = as.numeric(Pitch)) |> 
+  na.omit()
+
+ggplot(data=results_si,
+       aes(x=Pitch, y=Difference)
+  ) + geom_point() + geom_smooth(method = "lm", se=F) + facet_wrap(~role_key) +
+  labs(title = "Sinker Velocity Average Difference", x="At-Bat", y="Difference in Velo from First Pitch")
+```
 
 # Candidates for New Roles
 
+## Candidate 1: RP -> SP
 
-
-## Candidate 1: RP -> SP/LR
-
-
+The first candidate is Rafael Montero of the Astros. He had a down 2023, with an ERA of 5.08 and has not started a game since 2017 with the Mets. Montero's four-seam velocity has stayed consistent for 8 at-bats, having zero at-bats with an average difference in velocity from his first below 0. He had 3 pitches with a Stuff+ >110. He would need to be stretched out and his fastball will lose some zip, but his pitches are good enough. His changeup was a bad secondary offering. I recommend minimizing its usage, using the slider as a secondary, and keeping the sinker as his third. Plugging in those metrics into the linear model for starters, his predicted ERA minus is 87.12. Montero will not be that good as a starter, his stuff will worsen with more pitches. However, he has shown signs of consistent velocity and has the pitching arsenal that would make him a solid starter, or long reliever at worst.
 
 ## Candidate 2: SP -> SIR
 
+The second candidate is Stephen Strasburg. I know he was supposed to retire, but as of today, February 5th, he is still on the Nationals 40-man. Plus, the Nationals owe him $105 MILLION over the next 3 years. The workload for a starter is not working out for him. If I am Mike Rizzo, I pitch him a high-leverage reliever role. Both his sinker and fastball on average dropped in velocity from his first at-bat in every following at-bat, down over a mile per hour by his 6th at-bat. Making his curveball his primary and supplementing that with his sinker, the linear model predicts an ERA-minus of 93.50. As a reliever, he will be able to put more heat on the sinker and still has a good changeup (108 Stuff+). If things work out, he could even be moved to closer once the Nationals trade away Kyle Finnegan, like they should've done last year.

@@ -521,8 +521,8 @@ cor(arsenal_gradeslr$ERA_minus, arsenal_gradeslr[5:7], use = "complete.obs")
 ## Starter
 
 ```{r}
-sp_mod2 <- lm(ERA_minus ~ Primary + Secondary + Third, data=arsenal_grades)
-summary(sp_mod2)
+sp_mod1 <- lm(ERA_minus ~ Primary + Secondary + Third, data=arsenal_grades)
+summary(sp_mod1)
 ```
 
 ## SI Reliever
@@ -695,6 +695,14 @@ results |>
   arrange(-Pitch)
 ```
 
+```{r}
+rm_pred <- data.frame("Primary" =113.4575,
+                      "Secondary" =114.0375,
+                      "Third" = 117.3859)
+
+predict(sp_mod1,rm_pred,interval="prediction")
+```
+
 ## Stephen Strasburg
 
 ```{r}
@@ -715,3 +723,11 @@ results_si |>
   filter(player_name == "Strasburg, Stephen") |>
   arrange(-Pitch)
 ```
+
+```{r}
+ss_pred <- data.frame("Primary" =120.4,
+                      "Secondary" = 89.4)
+
+predict(rp_mod2,ss_pred,interval="prediction")
+```
+

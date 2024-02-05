@@ -1,1 +1,3 @@
 # RedsHackathon
+
+by Sebastian Kirkpatrick
